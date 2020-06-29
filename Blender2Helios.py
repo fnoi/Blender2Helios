@@ -19,6 +19,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 import os
 from os.path import expanduser
 import math
+from xml.sax.saxutils import quoteattr
 
 bl_info = {
     "name": "Blender2Helios",
@@ -178,9 +179,10 @@ class Blender2HeliosHelper():
                         o.scale *= scale
                         o.location = backupTranslation
                         o.rotation_quaternion = backupRotation
-                        if (self.useOwnMaterials):
+                        self.patch_objfile(objFile)
+                        if self.useOwnMaterials:
                             self.prependMaterial2File(collection_name, objFile)
-                    out += self.object2XML(collection_name, object_name + '-' + objFileSizeExtension + '.obj', o.location, self.quaternion2RPY(o.rotation_quaternion), scale)
+                    out += self.object2XML(collection_name, object_name + '-' + objFileSizeExtension + '.obj', o.location, self.quaternion2RPY(o.rotation_quaternion), scale) # nur ins xml
         return out
 
     def export2Helios(self):
@@ -230,7 +232,7 @@ class Blender2HeliosHelper():
     def object2XML(self, collection, objectFile, translation, rotation, scale):
         return """        <part>
                 <filter type="objloader">
-                    <param type="string" key="filepath" value=\"""" + self.heliosDir + """data/sceneparts/""" + collection + '/' + objectFile + """" />
+                    <param type="string" key="filepath" value=""" + quoteattr(self.heliosDir + "data/sceneparts/" + collection + "/" + objectFile) + """ />
                     <param type="boolean" key="castShadows" value="true" />
                     <param type="boolean" key="receiveShadows" value="true" />
                     <param type="boolean" key="recomputeVertexNormals" value="true" />
@@ -266,7 +268,8 @@ class Blender2HeliosHelper():
 
     def exportSelectedObject(self, file):
         export_materials = self.useMaterials and not self.useOwnMaterials
-        bpy.ops.export_scene.obj(filepath=file, check_existing=False, use_mesh_modifiers=True, use_selection=True, use_normals=False, use_materials=export_materials, use_uvs=False, axis_forward='Y', axis_up='Z')
+        bpy.ops.export_scene.obj(filepath=file, check_existing=False, use_mesh_modifiers=True, use_selection=True, use_normals=False,
+            use_materials=export_materials, use_uvs=False, axis_forward='Y', axis_up='Z')
 
     def selectOneObject(self, object):
         bpy.ops.object.select_all(action='DESELECT')
@@ -293,3 +296,13 @@ class Blender2HeliosHelper():
         src.writelines(xml)
         src.close()
         
+    def patch_objfile(self, fileName):
+        #We read the existing text from file in READ mode
+        src=open(fileName,"r")
+        xml=src.readlines()
+        xml[2]=xml[2].replace("\\","")
+        src.close()
+        #We again open the file in WRITE mode 
+        src=open(fileName,"w")
+        src.writelines(xml)
+        src.close()
